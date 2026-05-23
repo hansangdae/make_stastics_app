@@ -94,12 +94,21 @@ with tab1:
     with col2:
         if 'sample_data' in st.session_state:
             st.success("데이터가 성공적으로 생성되었습니다!")
-            # Streamlit DataFrame은 기본적으로 우측 상단에 복사(클립보드) 및 CSV 다운로드 버튼을 제공합니다.
+            
+            # 1. 기본 데이터프레임 표시 (우측 상단 마우스 오버 시 복사/다운로드 아이콘 표시됨)
             st.dataframe(st.session_state['sample_data'], use_container_width=True)
             
-            # 엑셀 다운로드를 위한 버튼 추가 (CSV를 주로 권장)
-            csv = st.session_state['sample_data'].to_csv(index=False).encode('utf-8-sig')
-            st.download_button(label="📥 CSV 파일로 다운로드 (엑셀 호환)", data=csv, file_name='sample_data.csv', mime='text/csv')
+            st.markdown("---")
+            
+            # 2. 직관적인 복사용 텍스트 박스 제공 (st.code 활용)
+            st.subheader("📋 클립보드 복사용 데이터")
+            st.caption("아래 박스 우측 상단의 '복사' 버튼을 누른 뒤, 2/4단계 탭의 '직접 입력' 칸에 붙여넣기 하세요.")
+            
+            # 데이터를 소수점 4자리까지 반올림한 뒤 쉼표로 연결한 문자열 생성
+            raw_data_str = ", ".join(map(lambda x: str(round(x, 4)), st.session_state['sample_data']["Sample Value"]))
+            
+            # st.code를 쓰면 전용 복사 버튼이 아주 명확하게 생깁니다!
+            st.code(raw_data_str, language="text")
 
 # ==========================================
 # 탭 2: 기술통계량 자동 계산
