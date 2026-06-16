@@ -18,7 +18,8 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "1단계: 데이터 수집", 
     "2단계: 기술통계량 계산", 
     "3단계: 실시간 그래프 시각화", 
-    "4단계: 가설 검정 및 추정"
+    "4단계: 가설 검정 및 추정",
+    "5단계: 상관분석 및 회귀분석"
 ])
 
 # 구조화된 분포 정보 딕셔너리 (공식 LaTeX 추가)
@@ -461,3 +462,178 @@ with tab4:
                 st.pyplot(fig)
             else:
                 st.warning("데이터가 부족하거나 형식이 잘못되었습니다.")
+
+# =========================================================================
+# 5단계: 상관분석 및 회귀분석 탭 (기존 파일 맨 아래에 그대로 이어 붙이세요)
+# =========================================================================
+with tab5:
+    st.header("📈 5단계: 상관분석 및 회귀분석")
+    st.markdown("""
+    이 단계에서는 사용자가 설정한 가상의 모집단 관계($Y = aX + b$)에 정규분포를 따르는 무작위 오차항을 더해 가상 데이터를 생성하고, 
+    이를 바탕으로 상관분석 및 선형회귀분석을 수행합니다.
+    """)
+
+    # ------------------------------------------
+    # 1. 데이터 생성 섹션
+    # ------------------------------------------
+    st.subheader("1. 데이터 생성 (Data Generation)")
+    
+    # 세션 상태 초기화 (탭을 이동해도 데이터가 증발하지 않도록 유지)
+    if 'reg_df' not in st.session_state:
+        st.session_state.reg_df = None
+    if 'reg_x_label' not in st.session_state:
+        st.session_state.reg_x_label = "독립변수(X)"
+    if 'reg_y_label' not in st.session_state:
+        st.session_state.reg_y_label = "종속변수(Y)"
+
+    # 입력 레이아웃 분할 (3열 구조)
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        a_true = st.number_input("참 기울기 (a)", value=2.0, step=0.1, key="reg_a_true", help="y = ax + b 에서의 기울기")
+        b_true = st.number_input("참 절편 (b)", value=5.0, step=0.1, key="reg_b_true", help="y = ax + b 에서의 Y절편")
+    
+    with col2:
+        sigma = st.number_input("오차항 표준편차 (σ)", value=3.0, min_value=0.1, step=0.1, key="reg_sigma", help="값이 클수록 데이터가 회귀선에서 멀리 흩어집니다.")
+        n_samples = st.number_input("데이터 쌍 개수 (n)", value=50, min_value=10, max_value=500, step=10, key="reg_n_samples")
+        
+    with col3:
+        x_min = st.number_input("X의 최소값", value=0.0, step=1.0, key="reg_x_min")
+        x_max = st.number_input("X의 최대값", value=10.0, step=1.0, key="reg_x_max")
+
+    # 변수 이름 커스텀 입력 (가로축/세로축 명칭 직접 설정)
+    st.markdown("##### 🏷️ 변수 이름 설정 (그래프 및 결과 레이블에 반영)")
+    c_name1, c_name2 = st.columns(2)
+    with c_name1:
+        x_input_name = st.text_input("가로축 (X) 변수명 입력", value="공부 시간 (시간)", key="reg_x_name")
+    with c_name2:
+        y_input_name = st.text_input("세로축 (Y) 변수명 입력", value="시험 점수 (점)", key="reg_y_name")
+
+    # 데이터 생성 버튼
+    if st.button("데이터 생성하기", type="primary", key="reg_gen_btn"):
+        if x_min >= x_max:
+            st.error("X의 최소값은 최대값보다 작아야 합니다.")
+        else:
+            # 1) X 데이터 무작위 생성 (균등분포)
+            x_val = np.random.uniform(x_min, x_max, int(n_samples))
+            # 2) 오차항 생성 (평균 0, 표준편차 sigma인 정규분포)
+            error = np.random.normal(0, sigma, int(n_samples))
+            # 3) Y 데이터 생성 (y = ax + b + noise)
+            y_val = a_true * x_val + b_true + error
+            
+            # 생성 데이터를 데이터프레임 구조로 변환 후 세션에 바인딩
+            st.session_state.reg_df = pd.DataFrame({'X': x_val, 'Y': y_val})
+            st.session_state.reg_x_label = x_input_name
+            st.session_state.reg_y_label = y_input_name
+            st.success(f"🎯 참 식 Y = {a_true}X + {b_true} 규칙을 따르는 {n_samples}개의 데이터 쌍이 생성되었습니다!")
+
+    # 데이터가 정상적으로 생성되어 세션에 보관 중일 때만 시각화 및 분석창 오픈
+    if st.session_state.reg_df is not None:
+        df = st.session_state.reg_df
+        xl = st.session_state.reg_x_label
+        yl = st.session_state.reg_y_label
+        
+        st.markdown("▼ **생성된 데이터 미리보기 (상위 5개 행)**")
+        preview_df = df.copy()
+        preview_df.columns = [xl, yl]
+        st.dataframe(preview_df.head(), use_container_width=True)
+
+        # ------------------------------------------
+        # 2. 상관 & 회귀 분석 섹션
+        # ------------------------------------------
+        st.write("---")
+        st.subheader("2. 상관 & 회귀 분석 결과 (Correlation & Regression)")
+        
+        if st.button("📊 상관 & 회귀 분석 실행", key="reg_analysis_btn"):
+            x = df['X']
+            y = df['Y']
+            n = len(x)
+            
+            # SciPy 연산 모듈로 선형 회귀 추정
+            res = stats.linregress(x, y)
+            r_coef = res.rvalue
+            r_squared = r_coef ** 2
+            a_est = res.slope
+            b_est = res.intercept
+            a_p = res.pvalue
+            a_stderr = res.stderr
+            
+            # 신뢰구간 및 검정통계량 수동 산출 (scipy 표준 연산)
+            dof = n - 2
+            t_crit = stats.t.ppf(0.975, dof)
+            
+            # 기울기(a) 95% 신뢰구간
+            a_ci_lower = a_est - t_crit * a_stderr
+            a_ci_upper = a_est + t_crit * a_stderr
+            a_t = a_est / a_stderr if a_stderr != 0 else 0
+            
+            # 절편(b) 표준오차 및 신뢰구간 구하기
+            if hasattr(res, 'intercept_stderr') and res.intercept_stderr is not None:
+                b_stderr = res.intercept_stderr
+            else:
+                b_stderr = a_stderr * np.sqrt(np.sum(x**2) / n)
+                
+            b_ci_lower = b_est - t_crit * b_stderr
+            b_ci_upper = b_est + t_crit * b_stderr
+            b_t = b_est / b_stderr if b_stderr != 0 else 0
+            b_p = 2 * (1 - stats.t.cdf(abs(b_t), dof))
+
+            # 레이아웃 배치 (좌측: 시각화 차트, 우측: 계량 지표 테이블)
+            result_col1, result_col2 = st.columns([1.1, 0.9])
+            
+            with result_col1:
+                st.markdown("#### 📉 산점도 및 추정 회귀선")
+                
+                fig, ax = plt.subplots(figsize=(6, 5))
+                # 관측치 산점도 플로팅
+                ax.scatter(x, y, color='#1f77b4', alpha=0.7, edgecolors='none', label='생성 데이터')
+                
+                # 최소제곱법 기반 추정 회귀선 계산 및 플로팅
+                x_line = np.linspace(x.min(), x.max(), 100)
+                y_line = a_est * x_line + b_est
+                ax.plot(x_line, y_line, color='#d62728', linewidth=2.5, 
+                        label=f'회귀선: Ŷ = {a_est:.2f}X + {b_est:.2f}')
+                
+                # 축 이름 커스텀 연동 및 꾸미기
+                ax.set_xlabel(xl, fontsize=11)
+                ax.set_ylabel(yl, fontsize=11)
+                ax.set_title(f"[{xl}]과 [{yl}]의 회귀분석 결과", fontsize=13, fontweight='bold')
+                ax.grid(True, linestyle='--', alpha=0.5)
+                ax.legend(loc='upper left')
+                
+                st.pyplot(fig)
+                
+            with result_col2:
+                st.markdown("#### 📋 주요 통계 분석 지표")
+                
+                # 주요 지표 상단 위젯 배치
+                m1, m2 = st.columns(2)
+                with m1:
+                    st.metric(label="상관계수 (Pearson r)", value=f"{r_coef:.4f}")
+                with m2:
+                    st.metric(label="결정계수 (R²)", value=f"{r_squared:.4f}")
+                
+                st.markdown("**✏️ 최종 추정 회귀식**")
+                st.info(f"**{yl} = {a_est:.4f} × [{xl}] + {b_est:.4f}**")
+                
+                # 대학교재 표준 형태의 통계량 요약 요약표(Summary Table) 생성
+                st.markdown("**🔬 회귀계수 검정 및 95% 신뢰구간**")
+                
+                summary_data = {
+                    "추정치 (Coef)": [b_est, a_est],
+                    "표준오차 (Std Err)": [b_stderr, a_stderr],
+                    "t-값 (t-stat)": [b_t, a_t],
+                    "p-값 (P>|t|)": [b_p, a_p],
+                    "95% 하한 (Lower)": [b_ci_lower, a_ci_lower],
+                    "95% 상한 (Upper)": [b_ci_upper, a_ci_upper]
+                }
+                
+                summary_df = pd.DataFrame(summary_data, index=["절편 (b)", f"기울기 (a, {xl})"])
+                st.dataframe(summary_df.style.format("{:.4f}"), use_container_width=True)
+                
+                # 유의수준 5% 기준 가설검정 해석 가이드 자동 텍스트 출력
+                st.markdown("**💡 통계적 해석 가이드**")
+                if a_p < 0.05:
+                    st.success(f"기울기(a)의 p-값이 **{a_p:.4f}**로 0.05보다 작으므로, 유의수준 5%에서 **{xl}은 {yl}에 통계적으로 유의미한 영향**을 미친다고 결론 내릴 수 있습니다.")
+                else:
+                    st.warning(f"기울기(a)의 p-값이 **{a_p:.4f}**로 0.05보다 크므로, 유의수준 5%에서 **{xl}이 {yl}에 미치는 영향은 통계적으로 유의미하지 않습니다**.")
