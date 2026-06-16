@@ -42,7 +42,7 @@ dist_info = {
         "카이제곱분포 (Chi-square)": {
             "params": ["자유도 (df)"],
             "desc": "표준정규분포를 따르는 확률변수들의 제곱합의 분포로, 분산 검정에 주로 쓰입니다.",
-            "formula": r"$$f(x) = \frac{1}{2^{\nu/2}\Gamma(\nu/2)} x^{nu/2-1} e^{-x/2} \quad (x > 0)$$"
+            "formula": r"$$f(x) = \frac{1}{2^{\nu/2}\Gamma(\nu/2)} x^{\nu/2-1} e^{-x/2} \quad (x > 0)$$"
         }
     },
     "이산분포 (Discrete)": {
@@ -86,11 +86,9 @@ with tab1:
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        # 대분류(이산/연속) 선택 후 소분류 선택 구조로 변경
         dist_type = st.selectbox("분포 유형을 선택하세요", list(dist_info.keys()), key="t1_type")
         dist_choice = st.selectbox("세부 분포를 선택하세요", list(dist_info[dist_type].keys()), key="t1_dist")
         
-        # 설명 및 수식 명기
         st.info(dist_info[dist_type][dist_choice]["desc"])
         st.markdown("**확률밀도/질량함수 공식:**")
         st.markdown(dist_info[dist_type][dist_choice]["formula"])
@@ -139,25 +137,35 @@ with tab2:
     st.header("🧮 2단계: 기술통계량 계산")
     col1, col2 = st.columns([1, 2])
     
+    if 't2_analyzed' not in st.session_state:
+        st.session_state['t2_analyzed'] = False
+    
     with col1:
         st.subheader("데이터 입력")
         txt_input = st.text_area("직접 입력 (숫자를 쉼표, 띄어쓰기, 줄바꿈으로 구분)", height=120, key="t2_txt")
         up_file = st.file_uploader("CSV 또는 Excel 파일 첨부", type=['csv', 'xlsx'], key="t2_file")
         
-        # 실시간 반응형 연동을 위해 세션 데이터 캐싱 및 로드
-        data = get_data_from_input(txt_input, up_file)
+        # 원래 유지하고 싶으셨던 분석 실행용 전용 버튼 추가 (입력 도중 튀는 현상 방지)
+        if st.button("🚀 분석 실행", type="primary", key="t2_run_btn"):
+            st.session_state['t2_analyzed'] = True
+            
+        # 데이터가 아예 비어있으면 초기화
+        if not txt_input and up_file is None:
+            st.session_state['t2_analyzed'] = False
+            
+        data = None
+        if st.session_state['t2_analyzed']:
+            data = get_data_from_input(txt_input, up_file)
         
         if data is not None and len(data) > 0:
             st.markdown("---")
             st.subheader("⚙️ 그래프 커스텀 설정")
-            # 토글 키 추가
             show_hist = st.toggle("히스토그램(막대) 표시", value=True)
             show_kde = st.toggle("밀도곡선(Line) 표시", value=True)
             
-            # 막대 두께(개수) 제어 바
-            hist_bins = st.slider("막대 두께 조절 (왼쪽: 두껍게 / 오른쪽: 얇게)", min_value=5, max_value=100, value=30)
+            # 가로 스크롤 이동에 맞춰 개수와 두께가 정비례/반비례 연동되도록 수정
+            hist_bins = st.slider("막대 개수 및 두께 조절 (왼쪽: 두껍고 적게 / 오른쪽: 얇고 많게)", min_value=5, max_value=100, value=30)
             
-            # 축 범위 직접 입력 기능
             custom_axis = st.checkbox("축 범위 직접 지정 (Axis Limits)")
             if custom_axis:
                 c1, c2 = st.columns(2)
@@ -196,7 +204,6 @@ with tab2:
             elif show_kde:
                 sns.kdeplot(data, color='dodgerblue', fill=True, ax=ax)
                 
-            # 깨짐 방지를 위한 완전 영문 레이블화
             ax.set_title("Data Histogram & Density Plot (KDE)", fontsize=12)
             ax.set_xlabel("Measured Value")
             ax.set_ylabel("Density")
@@ -207,7 +214,7 @@ with tab2:
                 
             st.pyplot(fig)
         else:
-            st.info("💡 왼쪽 칸에 데이터를 입력하거나 샘플 데이터를 복사해오면 실시간으로 분석이 시작됩니다.")
+            st.info("💡 왼쪽 칸에 데이터를 입력하거나 샘플 데이터를 복사해온 후 '🚀 분석 실행' 버튼을 누르면 분석이 시작됩니다.")
 
 # ==========================================
 # 탭 3: 모수 변경 실시간 그래프 시각화
@@ -219,7 +226,6 @@ with tab3:
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        # 대분류 선택 후 소분류 선택 구조
         dist_type3 = st.selectbox("분포 유형 선택", list(dist_info.keys()), key="t3_type")
         dist_choice3 = st.selectbox("분포 선택", list(dist_info[dist_type3].keys()), key="t3_dist")
         
@@ -238,12 +244,9 @@ with tab3:
         st.markdown("---")
         st.subheader("⚙️ 축 범위 및 옵션 커스텀")
         
-        # 이산형인 경우 두께 제어 바 활성화
-        is_discrete = (dist_type3 == "이산분포 (Discrete)")
-        if is_discrete:
-            line_width = st.slider("이산형 그래프 선 두께 조절", min_value=1, max_value=20, value=5)
-            
-        # 축 범위 설정용 기본 스마트 가이드라인 값 계산
+        # 2단계와 통일성을 갖춰 개수와 두께가 동시 연동되는 슬라이더로 변경 패치
+        hist_bins3 = st.slider("막대 개수 및 두께 조절 (왼쪽: 두껍고 적게 / 오른쪽: 얇고 많게)", min_value=5, max_value=100, value=30, key="t3_bins")
+        
         default_xmin, default_xmax = -10.0, 10.0
         default_ymin, default_ymax = 0.0, 1.0
         if "정규분포" in dist_choice3:
@@ -263,6 +266,7 @@ with tab3:
             default_ymin, default_ymax = 0.0, 0.25
 
         custom_axis3 = st.checkbox("축 범위 직접 입력하기", key="t3_custom_ax")
+        xmin3, xmax3, ymin3, ymax3 = default_xmin, default_xmax, default_ymin, default_ymax
         if custom_axis3:
             c3_1, c3_2 = st.columns(2)
             xmin3 = c3_1.number_input("X-Axis Min", value=float(default_xmin))
@@ -273,38 +277,63 @@ with tab3:
     with col2:
         fig, ax = plt.subplots(figsize=(8, 5))
         
-        # 렌더링 범위 정의
         eval_xmin = xmin3 if custom_axis3 else default_xmin
         eval_xmax = xmax3 if custom_axis3 else default_xmax
         x = np.linspace(eval_xmin, eval_xmax, 1000)
         
+        # 실시간 데이터 시뮬레이션을 생성하여 슬라이더 조절 시 막대바 개수와 두께가 동적으로 변화하는 모습을 가시화
+        sample_size = 5000
+        np.random.seed(42)
+        
         if "정규분포" in dist_choice3:
+            samples = stats.norm.rvs(slider_params["평균 (μ)"], slider_params["표준편차 (σ)"], size=sample_size)
+            sns.histplot(samples, bins=hist_bins3, stat="density", color='purple', alpha=0.25, ax=ax, label="Sample Histogram")
+            
             y = stats.norm.pdf(x, slider_params["평균 (μ)"], slider_params["표준편차 (σ)"])
             ax.plot(x, y, color='purple', lw=2, label="Normal PDF")
+            
         elif "지수분포" in dist_choice3:
+            samples = stats.expon.rvs(scale=1/slider_params["비율 모수 (λ)"], size=sample_size)
+            sns.histplot(samples, bins=hist_bins3, stat="density", color='teal', alpha=0.25, ax=ax, label="Sample Histogram")
+            
             y = stats.expon.pdf(x, scale=1/slider_params["비율 모수 (λ)"])
             ax.plot(x, y, color='teal', lw=2, label="Exponential PDF")
+            
         elif "이항분포" in dist_choice3:
+            samples = stats.binom.rvs(slider_params["시행 횟수 (n)"], slider_params["성공 확률 (p)"], size=sample_size)
+            sns.histplot(samples, bins=hist_bins3, stat="density", color='blue', alpha=0.25, ax=ax, label="Sample Histogram")
+            
             x_b = np.arange(max(0, int(eval_xmin)), min(int(eval_xmax)+1, slider_params["시행 횟수 (n)"]+1))
             y_b = stats.binom.pmf(x_b, slider_params["시행 횟수 (n)"], slider_params["성공 확률 (p)"])
-            ax.vlines(x_b, 0, y_b, colors='b', lw=line_width, alpha=0.6, label="Binomial PMF")
+            ax.vlines(x_b, 0, y_b, colors='darkblue', lw=2, alpha=0.7, label="Theoretical PMF")
             ax.plot(x_b, y_b, 'bo', ms=4)
+            
         elif "포아송" in dist_choice3:
+            samples = stats.poisson.rvs(slider_params["발생률 (λ)"], size=sample_size)
+            sns.histplot(samples, bins=hist_bins3, stat="density", color='green', alpha=0.25, ax=ax, label="Sample Histogram")
+            
             x_p = np.arange(max(0, int(eval_xmin)), int(eval_xmax)+1)
             y_p = stats.poisson.pmf(x_p, slider_params["발생률 (λ)"])
-            ax.vlines(x_p, 0, y_p, colors='g', lw=line_width, alpha=0.6, label="Poisson PMF")
+            ax.vlines(x_p, 0, y_p, colors='darkgreen', lw=2, alpha=0.7, label="Poisson PMF")
             ax.plot(x_p, y_p, 'go', ms=4)
+            
         elif "t-분포" in dist_choice3:
+            samples = stats.t.rvs(slider_params["자유도 (df)"], size=sample_size)
+            sns.histplot(samples, bins=hist_bins3, stat="density", color='red', alpha=0.25, ax=ax, label="Sample Histogram")
+            
             y = stats.t.pdf(x, slider_params["자유도 (df)"])
             y_norm = stats.norm.pdf(x, 0, 1)
             ax.plot(x, y, color='red', lw=2, label=f"t-dist (df={slider_params['자유도 (df)']})")
             ax.plot(x, y_norm, color='gray', linestyle='--', label="Normal (0,1)")
+            
         elif "카이제곱" in dist_choice3:
+            samples = stats.chi2.rvs(slider_params["자유도 (df)"], size=sample_size)
+            sns.histplot(samples, bins=hist_bins3, stat="density", color='orange', alpha=0.25, ax=ax, label="Sample Histogram")
+            
             y_c = stats.chi2.pdf(x, slider_params["자유도 (df)"])
             ax.plot(x, y_c, color='orange', lw=2, label="Chi-Square PDF")
             
-        # 모든 깨짐 현상 원천 배제 (완전 영문화)
-        ax.set_title(f"Theoretical Function Profile", fontsize=14)
+        ax.set_title(f"Theoretical & Sample Profile", fontsize=14)
         ax.set_xlabel("Random Variable (X)")
         ax.set_ylabel("Probability Density / Mass")
         ax.legend()
@@ -320,7 +349,7 @@ with tab3:
         st.pyplot(fig)
 
 # ==========================================
-# 탭 4: 가설 검정 및 추정 (동일하게 축/라벨 영문화 패치)
+# 탭 4: 가설 검정 및 추정
 # ==========================================
 with tab4:
     st.header("⚖️ 4단계: 가설 검정 및 추정")
