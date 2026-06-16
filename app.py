@@ -14,7 +14,7 @@ st.title("📊 기초통계학 학습 Playground")
 st.markdown("---")
 
 # 4개의 탭 생성
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "1단계: 데이터 수집", 
     "2단계: 기술통계량 계산", 
     "3단계: 실시간 그래프 시각화", 
